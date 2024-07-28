@@ -24,24 +24,24 @@ def parse_tsan_output(tsan_output):
 def create_graph(threads, race_location, race_variable):
     G = nx.DiGraph()
     root = f'Race at {race_variable} ({race_location})'
-    G.add_node(root, label=root, style='filled', fillcolor='red')
-    color_map = ['lightblue', 'lightgreen', 'lightgray', 'lightcoral']  # Extend as needed
+    G.add_node(root, label='Race Condition', full_label=root, style='filled', fillcolor='red')  # Root node
 
     for i, (thread, calls) in enumerate(threads.items()):
         previous = root
-        color = color_map[i % len(color_map)]
+        color = ['lightblue', 'lightgreen', 'lightgray', 'lightcoral'][i % 4]
         for func in reversed(calls):
-            node_id = f"{thread}: {func}"
+            shortened_func = (func[:30] + '...') if len(func) > 30 else func
+            node_id = f"{thread}: {shortened_func}"
             if node_id not in G:
-                G.add_node(node_id, label=func, style='filled', fillcolor=color)
+                G.add_node(node_id, label=shortened_func, full_label=func, style='filled', fillcolor=color)
             G.add_edge(previous, node_id)
             previous = node_id
 
     return G
 
+
 def draw_interactive_graph(G, pos):
-    edge_x = []
-    edge_y = []
+    edge_x, edge_y = [], []
     for edge in G.edges():
         x0, y0 = pos[edge[0]]
         x1, y1 = pos[edge[1]]
@@ -50,20 +50,30 @@ def draw_interactive_graph(G, pos):
 
     edge_trace = go.Scatter(x=edge_x, y=edge_y, line=dict(width=0.5, color='#888'), hoverinfo='none', mode='lines')
 
-    node_x = []
-    node_y = []
-    text = []
+    node_x, node_y, text, hover_text = [], [], [], []
     for node in G.nodes():
         x, y = pos[node]
         node_x.append(x)
         node_y.append(y)
         text.append(G.nodes[node]['label'])
+        hover_text.append(G.nodes[node]['full_label'])
 
-    node_trace = go.Scatter(x=node_x, y=node_y, text=text, mode='markers+text', hoverinfo='text', marker=dict(showscale=False, colorscale='Viridis', size=10, color=[G.nodes[node]['fillcolor'] for node in G.nodes()], line_width=2))
+    node_trace = go.Scatter(
+        x=node_x, y=node_y, text=text, mode='markers+text',
+        hoverinfo='text', hovertext=hover_text,
+        marker=dict(showscale=False, colorscale='Viridis', size=10,
+                    color=[G.nodes[node]['fillcolor'] for node in G.nodes()], line_width=2)
+    )
 
-    fig = go.Figure(data=[edge_trace, node_trace], layout=go.Layout(showlegend=False, hovermode='closest', margin=dict(b=20, l=5, r=5, t=40), xaxis=dict(showgrid=False, zeroline=False, showticklabels=False), yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)))
+    fig = go.Figure(data=[edge_trace, node_trace], layout=go.Layout(
+        showlegend=False, hovermode='closest',
+        margin=dict(b=20, l=5, r=5, t=40),
+        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
+    )
 
     fig.show()
+
 
 def main():
     tsan_output = """
