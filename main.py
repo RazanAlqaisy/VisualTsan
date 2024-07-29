@@ -23,7 +23,8 @@ def parse_tsan_output(tsan_output):
     return threads, race_location, race_variable
 
 def shorten_function_name(full_name):
-    match = re.search(r'([^/]+)\.\w+:\d+', full_name)
+    # Extract the function name from the full path using regex
+    match = re.search(r'([^/]+)\.cpp:\d+', full_name)
     if match:
         return match.group(1)
     return full_name
