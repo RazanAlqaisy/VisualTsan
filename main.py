@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import networkx as nx
 import plotly.graph_objects as go
+import re
 
 def parse_tsan_output(tsan_output):
     threads = {}
@@ -21,6 +22,12 @@ def parse_tsan_output(tsan_output):
 
     return threads, race_location, race_variable
 
+def shorten_function_name(full_name):
+    match = re.search(r'([^/]+)\.\w+:\d+', full_name)
+    if match:
+        return match.group(1)
+    return full_name
+
 def create_graph(threads, race_location, race_variable):
     G = nx.DiGraph()
     root = f'Race at {race_variable} ({race_location})'
@@ -30,7 +37,7 @@ def create_graph(threads, race_location, race_variable):
         previous = root
         color = ['lightblue', 'lightgreen', 'lightgray', 'lightcoral'][i % 4]
         for func in reversed(calls):
-            shortened_func = (func[:30] + '...') if len(func) > 30 else func
+            shortened_func = shorten_function_name(func)
             node_id = f"{thread}: {shortened_func}"
             if node_id not in G:
                 G.add_node(node_id, label=shortened_func, full_label=func, style='filled', fillcolor=color)
@@ -38,7 +45,6 @@ def create_graph(threads, race_location, race_variable):
             previous = node_id
 
     return G
-
 
 def draw_interactive_graph(G, pos):
     edge_x, edge_y = [], []
@@ -49,6 +55,20 @@ def draw_interactive_graph(G, pos):
         edge_y.extend([y0, y1, None])
 
     edge_trace = go.Scatter(x=edge_x, y=edge_y, line=dict(width=0.5, color='#888'), hoverinfo='none', mode='lines')
+
+    # Add arrow heads by creating a separate trace
+    arrows_x, arrows_y = [], []
+    for edge in G.edges():
+        x0, y0 = pos[edge[0]]
+        x1, y1 = pos[edge[1]]
+        arrows_x.extend([x1])
+        arrows_y.extend([y1])
+
+    arrows_trace = go.Scatter(
+        x=arrows_x, y=arrows_y, mode='markers',
+        marker=dict(color='#888', size=10, symbol='arrow-bar-up'),
+        hoverinfo='none'
+    )
 
     node_x, node_y, text, hover_text = [], [], [], []
     for node in G.nodes():
@@ -65,7 +85,7 @@ def draw_interactive_graph(G, pos):
                     color=[G.nodes[node]['fillcolor'] for node in G.nodes()], line_width=2)
     )
 
-    fig = go.Figure(data=[edge_trace, node_trace], layout=go.Layout(
+    fig = go.Figure(data=[edge_trace, arrows_trace, node_trace], layout=go.Layout(
         showlegend=False, hovermode='closest',
         margin=dict(b=20, l=5, r=5, t=40),
         xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
@@ -73,7 +93,6 @@ def draw_interactive_graph(G, pos):
     )
 
     fig.show()
-
 
 def main():
     tsan_output = """
@@ -84,7 +103,7 @@ def main():
         #2 std::__invoke_result<void (*)()>::type std::__invoke<void (*)()>(void (*&&)()) /usr/include/c++/11/bits/invoke.h:96 (untitled2+0x49d1)
         #3 void std::thread::_Invoker<std::tuple<void (*)()> >::_M_invoke<0ul>(std::_Index_tuple<0ul>) /usr/include/c++/11/bits/std_thread.h:259 (untitled2+0x4926)
         #4 std::thread::_Invoker<std::tuple<void (*)()> >::operator()() /usr/include/c++/11/bits/std_thread.h:266 (untitled2+0x48c8)
-        #5 std::thread::_State_impl<std::thread::_Invoker<std::tuple<void (*)())> >::_M_run() /usr/include/c++/11/bits/std_thread.h:211 (untitled2+0x487a)
+        #5 std::thread::_State_impl<std::thread::_Invoker<std::tuple<void (*)()> >::_M_run() /usr/include/c++/11/bits/std_thread.h:211 (untitled2+0x487a)
         #6 <null> <null> (libstdc++.so.6+0xdc252)
 
     Previous write of size 4 at 0x563c4e70e154 by thread T1:
@@ -93,7 +112,7 @@ def main():
         #2 std::__invoke_result<void (*)()>::type std::__invoke<void (*)()>(void (*&&)()) /usr/include/c++/11/bits/invoke.h:96 (untitled2+0x49d1)
         #3 void std::thread::_Invoker<std::tuple<void (*)()> >::_M_invoke<0ul>(std::_Index_tuple<0ul>) /usr/include/c++/11/bits/std_thread.h:259 (untitled2+0x4926)
         #4 std::thread::_Invoker<std::tuple<void (*)()> >::operator()() /usr/include/c++/11/bits/std_thread.h:266 (untitled2+0x48c8)
-        #5 std::thread::_State_impl<std::thread::_Invoker<std::tuple<void (*)())> >::_M_run() /usr/include/c++/11/bits/std_thread.h:211 (untitled2+0x487a)
+        #5 std::thread::_State_impl<std::thread::_Invoker<std::tuple<void (*)()> >::_M_run() /usr/include/c++/11/bits/std_thread.h:211 (untitled2+0x487a)
         #6 <null> <null> (libstdc++.so.6+0xdc252)
 
     Location is global 'shared_variable' of size 4 at 0x563c4e70e154 (untitled2+0x000000008154)
