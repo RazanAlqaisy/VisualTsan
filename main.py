@@ -23,11 +23,13 @@ def parse_tsan_output(tsan_output):
     return threads, race_location, race_variable
 
 def shorten_function_name(full_name):
-    # Extract the function name from the full path using regex
-    match = re.search(r'([^/]+)\.cpp:\d+', full_name)
-    if match:
-        return match.group(1)
-    return full_name
+    # Remove specific patterns from function names
+    short_name = re.sub(r'std::thread::.*?::', '', full_name)
+    short_name = re.sub(r'std::__invoke.*?::', '', short_name)
+    short_name = re.sub(r'void ', '', short_name)
+    short_name = re.sub(r'\(\)\s*', '', short_name)
+    short_name = re.sub(r'\s*\(.*\)', '', short_name)  # Remove parameter lists
+    return short_name.strip()
 
 def create_graph(threads, race_location, race_variable):
     G = nx.DiGraph()
@@ -96,40 +98,9 @@ def draw_interactive_graph(G, pos):
     fig.show()
 
 def main():
-    tsan_output = """
-    WARNING: ThreadSanitizer: data race (pid=8255)
-    Read of size 4 at 0x563c4e70e154 by thread T2:
-        #0 thread_function() /mnt/c/Users/sebak/Desktop/hell/untitled2/main.cpp:11 (untitled2+0x2459)
-        #1 void std::__invoke_impl<void, void (*)()>(std::__invoke_other, void (*&&)()) /usr/include/c++/11/bits/invoke.h:61 (untitled2+0x4a7c)
-        #2 std::__invoke_result<void (*)()>::type std::__invoke<void (*)()>(void (*&&)()) /usr/include/c++/11/bits/invoke.h:96 (untitled2+0x49d1)
-        #3 void std::thread::_Invoker<std::tuple<void (*)()> >::_M_invoke<0ul>(std::_Index_tuple<0ul>) /usr/include/c++/11/bits/std_thread.h:259 (untitled2+0x4926)
-        #4 std::thread::_Invoker<std::tuple<void (*)()> >::operator()() /usr/include/c++/11/bits/std_thread.h:266 (untitled2+0x48c8)
-        #5 std::thread::_State_impl<std::thread::_Invoker<std::tuple<void (*)()> >::_M_run() /usr/include/c++/11/bits/std_thread.h:211 (untitled2+0x487a)
-        #6 <null> <null> (libstdc++.so.6+0xdc252)
-
-    Previous write of size 4 at 0x563c4e70e154 by thread T1:
-        #0 thread_function() /mnt/c/Users/sebak/Desktop/hell/untitled2/main.cpp:11 (untitled2+0x2471)
-        #1 void std::__invoke_impl<void, void (*)()>(std::__invoke_other, void (*&&)()) /usr/include/c++/11/bits/invoke.h:61 (untitled2+0x4a7c)
-        #2 std::__invoke_result<void (*)()>::type std::__invoke<void (*)()>(void (*&&)()) /usr/include/c++/11/bits/invoke.h:96 (untitled2+0x49d1)
-        #3 void std::thread::_Invoker<std::tuple<void (*)()> >::_M_invoke<0ul>(std::_Index_tuple<0ul>) /usr/include/c++/11/bits/std_thread.h:259 (untitled2+0x4926)
-        #4 std::thread::_Invoker<std::tuple<void (*)()> >::operator()() /usr/include/c++/11/bits/std_thread.h:266 (untitled2+0x48c8)
-        #5 std::thread::_State_impl<std::thread::_Invoker<std::tuple<void (*)()> >::_M_run() /usr/include/c++/11/bits/std_thread.h:211 (untitled2+0x487a)
-        #6 <null> <null> (libstdc++.so.6+0xdc252)
-
-    Location is global 'shared_variable' of size 4 at 0x563c4e70e154 (untitled2+0x000000008154)
-
-    Thread T2 (tid=8258, running) created by main thread at:
-        #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:969 (libtsan.so.0+0x605b8)
-        #1 std::thread::_M_start_thread(std::unique_ptr<std::thread::_State, std::default_delete<std::thread::_State>) >, void (*)()) <null> (libstdc++.so.6+0xdc328)
-        #2 main /mnt/c/Users/sebak/Desktop/hell/untitled2/main.cpp:20 (untitled2+0x24e3)
-
-    Thread T1 (tid=8257, running) created by main thread at:
-        #0 pthread_create ../../../../src/libsanitizer/tsan/tsan_interceptors_posix.cpp:969 (libtsan.so.0+0x605b8)
-        #1 std::thread::_M_start_thread(std::unique_ptr<std::thread::_State, std::default_delete<std::thread::_State>) >, void (*)()) <null> (libstdc++.so.6+0xdc328)
-        #2 main /mnt/c/Users/sebak/Desktop/hell/untitled2/main.cpp:20 (untitled2+0x24e3)
-
-    SUMMARY: ThreadSanitizer: data race /mnt/c/Users/sebak/Desktop/hell/untitled2/main.cpp:11 in thread_function()
-    """
+    #Make sure to place your TSan output in a file named tsan_output.txt in the same directory as this script.
+    with open('tsan_output.txt', 'r') as file:
+        tsan_output = file.read()
 
     threads, race_location, race_variable = parse_tsan_output(tsan_output)
     graph = create_graph(threads, race_location, race_variable)
